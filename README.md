@@ -174,14 +174,26 @@ Epic open-ticket counts (for `--epics`) are cached separately with a **5-minute 
 
 **1. Configure the Workday RaaS report**
 
-Your report URL must include `Event_Effective_Date_On_or_After` and `Event_Effective_Date_On_or_Before` query parameters — `mcf` rewrites them to the actual date ranges before each fetch. Export the report in JSON format (`&format=json`).
+Export your Workday RaaS report in JSON format. The report must include worker name, vacation start date, and vacation end date columns — the field names vary by org and are configured below.
 
 **2. Add credentials to `~/.config/mcf/env`**
 
 ```bash
-WD_JSON_LINK=https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/...&format=json
+# Base URL of your Workday RaaS report — include any org-specific filter params,
+# but NOT the date range params or &format=json (mcf appends those automatically).
+WD_JSON_LINK=https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/VacationReport?Filter=value&...
 WD_USER=your-integration-user
 WD_PASSWORD=your-password
+
+# Field names in the JSON response — match your report's column labels exactly.
+WD_FIELD_ENTRIES=Report_Entry
+WD_FIELD_WORKER=Worker
+WD_FIELD_DATE_FROM=From
+WD_FIELD_DATE_TO=To
+
+# URL query parameter names used to filter by date range.
+WD_PARAM_DATE_FROM=Event_Effective_Date_On_or_After
+WD_PARAM_DATE_TO=Event_Effective_Date_On_or_Before
 
 # Exclude non-engineers (people in the WD report who aren't on the dev team)
 WD_EXCLUDE_WORKERS=Alice Smith,Bob Jones

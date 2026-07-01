@@ -386,9 +386,15 @@ describe("parseConfig — --epics flag", () => {
 
 describe("--workday", () => {
   beforeEach(() => {
-    process.env.WD_JSON_LINK = "https://wd.example.com/report?Event_Effective_Date_On_or_After=2026-01-01-07%3A00&Event_Effective_Date_On_or_Before=2026-12-31-08%3A00&format=json";
+    process.env.WD_JSON_LINK = "https://wd.example.com/report?MyDateFrom=2026-01-01&MyDateTo=2026-12-31&format=json";
     process.env.WD_USER = "user";
     process.env.WD_PASSWORD = "pass";
+    process.env.WD_FIELD_ENTRIES = "Report_Entry";
+    process.env.WD_FIELD_WORKER = "Worker";
+    process.env.WD_FIELD_DATE_FROM = "From";
+    process.env.WD_FIELD_DATE_TO = "To";
+    process.env.WD_PARAM_DATE_FROM = "MyDateFrom";
+    process.env.WD_PARAM_DATE_TO = "MyDateTo";
     process.env.JIRA_URL = "https://jira.example.com";
     process.env.JIRA_EMAIL = "a@b.com";
     process.env.JIRA_TOKEN = "tok";
@@ -400,6 +406,12 @@ describe("--workday", () => {
     delete process.env.WD_USER;
     delete process.env.WD_PASSWORD;
     delete process.env.WD_EXCLUDE_WORKERS;
+    delete process.env.WD_FIELD_ENTRIES;
+    delete process.env.WD_FIELD_WORKER;
+    delete process.env.WD_FIELD_DATE_FROM;
+    delete process.env.WD_FIELD_DATE_TO;
+    delete process.env.WD_PARAM_DATE_FROM;
+    delete process.env.WD_PARAM_DATE_TO;
   });
 
   it("parses --workday with required --team-size", () => {
@@ -412,6 +424,8 @@ describe("--workday", () => {
     expect(cfg.workday!.teamSize).toBe(8);
     expect(cfg.workday!.joiners).toEqual([]);
     expect(cfg.workday!.leavers).toEqual([]);
+    expect(cfg.workday!.wdConfig.fields).toEqual({ entries: "Report_Entry", worker: "Worker", dateFrom: "From", dateTo: "To" });
+    expect(cfg.workday!.wdConfig.dateParams).toEqual({ from: "MyDateFrom", to: "MyDateTo" });
   });
 
   it("accepts decimal --team-size", () => {
@@ -492,6 +506,26 @@ describe("--workday", () => {
         "--workday", "--team-size", "8",
       ])
     ).toThrow("WD_JSON_LINK is required");
+  });
+
+  it("rejects --workday when WD_FIELD_ENTRIES is missing", () => {
+    process.env.WD_FIELD_ENTRIES = "";
+    expect(() =>
+      parseConfig([
+        "--how-many", "--days", "30", "--project", "KEY",
+        "--workday", "--team-size", "8",
+      ])
+    ).toThrow("WD_FIELD_ENTRIES is required");
+  });
+
+  it("rejects --workday when WD_PARAM_DATE_FROM is missing", () => {
+    process.env.WD_PARAM_DATE_FROM = "";
+    expect(() =>
+      parseConfig([
+        "--how-many", "--days", "30", "--project", "KEY",
+        "--workday", "--team-size", "8",
+      ])
+    ).toThrow("WD_PARAM_DATE_FROM is required");
   });
 
   it("rejects invalid --leaver date", () => {

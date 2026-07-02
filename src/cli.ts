@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
-import { parseConfig, MissingJiraTypesError } from "./args";
+import { parseArgs } from "node:util";
+import { parseConfig, MissingJiraTypesError, loadMcsEnv, requireValidDate } from "./args";
 import { fetchThroughput, buildJql, fetchEpicCounts, fetchProjectIssueTypes } from "./jira";
 import { forecast, forecastEpics } from "./run";
 import { formatHuman, formatJson, formatEpicsHuman, formatEpicsTsv } from "./format";
 import { bold, dim } from "./ansi";
-import { fetchVacations, avgAvailable, addDaysToYMD, addWorkingDaysToYMD } from "./workday";
+import { fetchVacations, fetchReportJson, avgAvailable, addDaysToYMD, addWorkingDaysToYMD } from "./workday";
 
 const COL = 30;
 const heading = (title: string) => `\n${bold(title)}`;
@@ -49,6 +50,8 @@ const USAGE = [
   row("--team-size N", "Team size (required with --workday)"),
   row("--leaver YYYY-MM-DD", "Person leaving on this date (repeatable)"),
   row("--joiner YYYY-MM-DD", "Person joining on this date (repeatable)"),
+  row("--show-workday-raw", "Print raw Workday JSON (setup helper;"),
+  row("", "needs --from/--to only)"),
 
   heading("Simulation & output"),
   row("--runs R", "Monte Carlo run count (default: 10000)"),
@@ -61,6 +64,7 @@ const USAGE = [
   "  mcf --when --tickets 40 --project ENG --exclude-weekends",
   "  mcf --how-many --days 15 --project ENG --workday --team-size 8 --leaver 2026-07-10",
   "  mcf --when --epics ENG-100,ENG-200+5 --project ENG --tsv",
+  "  mcf --show-workday-raw --from 2026-05-01 --to 2026-06-24",
 ].join("\n");
 
 /** Print guidance when MCF_JIRA_TYPES is unset, including the project's issue
@@ -82,6 +86,52 @@ async function reportMissingJiraTypes(err: MissingJiraTypesError): Promise<void>
   console.error(`  MCF_JIRA_TYPES=Bug,Story,Task`);
 }
 
+async function runShowWorkdayRaw(argv: string[]): Promise<void> {
+  try {
+    const { values, tokens } = parseArgs({
+      args: argv,
+      options: {
+        "show-workday-raw": { type: "boolean" },
+        from: { type: "string" },
+        to: { type: "string" },
+      },
+      allowPositionals: true,
+      strict: false,
+      tokens: true,
+    });
+
+    const hasUnrelated = tokens.some(
+      (t) => t.kind === "option" && !["show-workday-raw", "from", "to"].includes(t.name)
+    );
+    if (hasUnrelated) {
+      console.error("Note: --show-workday-raw ignores unrelated arguments.");
+    }
+
+    if (typeof values.from !== "string") throw new Error("--from is required with --show-workday-raw.");
+    if (typeof values.to !== "string") throw new Error("--to is required with --show-workday-raw.");
+    const from = requireValidDate(values.from, "--from");
+    const to = requireValidDate(values.to, "--to");
+
+    const env = loadMcsEnv();
+    const wdLink = env.WD_JSON_LINK;
+    const wdUser = env.WD_USER;
+    const wdPassword = env.WD_PASSWORD;
+    const wdParamDateFrom = env.WD_PARAM_DATE_FROM;
+    const wdParamDateTo = env.WD_PARAM_DATE_TO;
+    if (!wdLink) throw new Error("WD_JSON_LINK is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdUser) throw new Error("WD_USER is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdPassword) throw new Error("WD_PASSWORD is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdParamDateFrom) throw new Error("WD_PARAM_DATE_FROM is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdParamDateTo) throw new Error("WD_PARAM_DATE_TO is required — set it in ~/.config/mcf/env or as an env var.");
+
+    const json = await fetchReportJson(wdLink, wdUser, wdPassword, from, to, wdParamDateFrom, wdParamDateTo);
+    console.log(JSON.stringify(json, null, 2));
+  } catch (err) {
+    console.error(`Error: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}
+
 async function main(argv: string[]): Promise<void> {
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(USAGE);
@@ -90,6 +140,10 @@ async function main(argv: string[]): Promise<void> {
   if (argv.includes("--version")) {
     console.log("1.0.0");
     process.exit(0);
+  }
+  if (argv.includes("--show-workday-raw")) {
+    await runShowWorkdayRaw(argv);
+    return;
   }
 
   let cfg;

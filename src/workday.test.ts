@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildUrl, avgAvailable, addDaysToYMD, addWorkingDaysToYMD, fetchVacations } from "./workday";
+import { buildUrl, avgAvailable, addDaysToYMD, addWorkingDaysToYMD, fetchVacations, fetchReportJson } from "./workday";
 import type { WorkdayConfig } from "./workday";
 
 describe("buildUrl", () => {
@@ -191,6 +191,43 @@ describe("fetchVacations", () => {
     const entries = await fetchVacations(customCfg, "2026-05-01", "2026-08-01");
     expect(entries).toHaveLength(1);
     expect(entries[0]).toEqual({ worker: "Alice Smith", from: "2026-06-09", to: "2026-06-13" });
+    vi.restoreAllMocks();
+  });
+});
+
+describe("fetchReportJson", () => {
+  it("returns the parsed JSON report", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ Report_Entry: [{ Worker: "Alice Smith", From: "2026-06-09", To: "2026-06-13" }] }),
+        { status: 200 }
+      )
+    ) as any;
+
+    const json = await fetchReportJson(
+      "https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/Report",
+      "testuser", "testpass",
+      "2026-05-01", "2026-08-01",
+      "Event_Effective_Date_On_or_After", "Event_Effective_Date_On_or_Before"
+    );
+
+    expect(json).toEqual({ Report_Entry: [{ Worker: "Alice Smith", From: "2026-06-09", To: "2026-06-13" }] });
+    vi.restoreAllMocks();
+  });
+
+  it("throws on 401", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response("Unauthorized", { status: 401 })
+    ) as any;
+
+    await expect(
+      fetchReportJson(
+        "https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/Report",
+        "testuser", "testpass",
+        "2026-05-01", "2026-08-01",
+        "Event_Effective_Date_On_or_After", "Event_Effective_Date_On_or_Before"
+      )
+    ).rejects.toThrow("Workday auth failed");
     vi.restoreAllMocks();
   });
 });

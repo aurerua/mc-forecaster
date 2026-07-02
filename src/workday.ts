@@ -163,6 +163,27 @@ function isHistorical(to: string): boolean {
   return to < todayYMD();
 }
 
+export async function fetchReportJson(
+  jsonLink: string,
+  user: string,
+  password: string,
+  from: string,
+  to: string,
+  paramFrom: string,
+  paramTo: string
+): Promise<Record<string, unknown>> {
+  const url = buildUrl(jsonLink, from, to, paramFrom, paramTo);
+  const credentials = Buffer.from(`${user}:${password}`).toString("base64");
+  const resp = await fetch(url, { headers: { Authorization: `Basic ${credentials}` } });
+  if (resp.status === 401) {
+    throw new Error("Workday auth failed — check WD_USER and WD_PASSWORD in ~/.config/mcf/env");
+  }
+  if (!resp.ok) {
+    throw new Error(`Workday request failed: ${resp.status}`);
+  }
+  return resp.json() as Promise<Record<string, unknown>>;
+}
+
 export async function fetchVacations(
   cfg: WorkdayConfig,
   from: string,

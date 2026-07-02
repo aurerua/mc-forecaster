@@ -87,7 +87,7 @@ function parseEnvValue(raw: string): string {
   return v.replace(/\s+#.*$/, "").trim();
 }
 
-function loadMcsEnv(): Record<string, string> {
+export function loadMcsEnv(): Record<string, string> {
   const base: Record<string, string> = {};
   try {
     const content = readFileSync(join(homedir(), ".config", "mcf", "env"), "utf8");
@@ -137,7 +137,7 @@ function parseHeadcount(raw: string): Headcount {
   return { data, forecast };
 }
 
-function requireValidDate(raw: string, flag: string): string {
+export function requireValidDate(raw: string, flag: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || isNaN(Date.parse(raw))) {
     throw new Error(`${flag} must be a valid date in YYYY-MM-DD format (got "${raw}").`);
   }

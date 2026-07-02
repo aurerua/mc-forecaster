@@ -178,6 +178,8 @@ Export your Workday RaaS report in JSON format. The report must include worker n
 
 **2. Add credentials to `~/.config/mcf/env`**
 
+Not sure what your report's field names are? Run `mcf --show-workday-raw --from YYYY-MM-DD --to YYYY-MM-DD` (needs only `WD_JSON_LINK`, `WD_USER`, `WD_PASSWORD`, `WD_PARAM_DATE_FROM`, `WD_PARAM_DATE_TO` set) to print the raw JSON and see the actual column names before setting `WD_FIELD_*` below.
+
 ```bash
 # Base URL of your Workday RaaS report — include any org-specific filter params,
 # but NOT the date range params or &format=json (mcf appends those automatically).

@@ -498,34 +498,22 @@ describe("--workday", () => {
     expect(cfg.workday!.wdConfig.excludeWorkers).toEqual(["Peter Seidel", "Jane Doe"]);
   });
 
-  it("rejects --workday when WD_JSON_LINK is missing", () => {
-    process.env.WD_JSON_LINK = "";
+  it.each([
+    "WD_JSON_LINK",
+    "WD_FIELD_ENTRIES",
+    "WD_FIELD_WORKER",
+    "WD_FIELD_DATE_FROM",
+    "WD_FIELD_DATE_TO",
+    "WD_PARAM_DATE_FROM",
+    "WD_PARAM_DATE_TO",
+  ])("rejects --workday when %s is missing", (envVar) => {
+    process.env[envVar] = "";
     expect(() =>
       parseConfig([
         "--how-many", "--days", "30", "--project", "KEY",
         "--workday", "--team-size", "8",
       ])
-    ).toThrow("WD_JSON_LINK is required");
-  });
-
-  it("rejects --workday when WD_FIELD_ENTRIES is missing", () => {
-    process.env.WD_FIELD_ENTRIES = "";
-    expect(() =>
-      parseConfig([
-        "--how-many", "--days", "30", "--project", "KEY",
-        "--workday", "--team-size", "8",
-      ])
-    ).toThrow("WD_FIELD_ENTRIES is required");
-  });
-
-  it("rejects --workday when WD_PARAM_DATE_FROM is missing", () => {
-    process.env.WD_PARAM_DATE_FROM = "";
-    expect(() =>
-      parseConfig([
-        "--how-many", "--days", "30", "--project", "KEY",
-        "--workday", "--team-size", "8",
-      ])
-    ).toThrow("WD_PARAM_DATE_FROM is required");
+    ).toThrow(`${envVar} is required`);
   });
 
   it("rejects invalid --leaver date", () => {

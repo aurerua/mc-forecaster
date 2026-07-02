@@ -1,30 +1,34 @@
 import { describe, it, expect, vi } from "vitest";
-import { injectDates, avgAvailable, addDaysToYMD, addWorkingDaysToYMD, fetchVacations } from "./workday";
+import { buildUrl, avgAvailable, addDaysToYMD, addWorkingDaysToYMD, fetchVacations } from "./workday";
 import type { WorkdayConfig } from "./workday";
 
-const BASE_URL =
-  "https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/Report" +
-  "?Event_Effective_Date_On_or_After=2026-01-01-07%3A00" +
-  "&Event_Effective_Date_On_or_Before=2026-06-30-08%3A00" +
-  "&format=json";
-
-describe("injectDates", () => {
-  it("replaces both date params while preserving time suffix", () => {
-    const result = injectDates(BASE_URL, "2026-04-01", "2026-09-30");
-    expect(result).toContain("Event_Effective_Date_On_or_After=2026-04-01-07%3A00");
-    expect(result).toContain("Event_Effective_Date_On_or_Before=2026-09-30-08%3A00");
-    expect(result).toContain("format=json");
+describe("buildUrl", () => {
+  it("appends date params and format=json with ? when no existing query string", () => {
+    const result = buildUrl(
+      "https://wd.example.com/report",
+      "2026-06-01", "2026-08-31",
+      "DateFrom", "DateTo"
+    );
+    expect(result).toBe("https://wd.example.com/report?DateFrom=2026-06-01&DateTo=2026-08-31&format=json");
   });
 
-  it("is idempotent", () => {
-    const once = injectDates(BASE_URL, "2026-04-01", "2026-09-30");
-    const twice = injectDates(once, "2026-04-01", "2026-09-30");
-    expect(once).toBe(twice);
+  it("appends with & when base URL already has query params", () => {
+    const result = buildUrl(
+      "https://wd.example.com/report?filter=abc",
+      "2026-06-01", "2026-08-31",
+      "DateFrom", "DateTo"
+    );
+    expect(result).toBe("https://wd.example.com/report?filter=abc&DateFrom=2026-06-01&DateTo=2026-08-31&format=json");
   });
 
-  it("returns the url unchanged when params are absent", () => {
-    const plain = "https://example.com/report?format=json";
-    expect(injectDates(plain, "2026-04-01", "2026-09-30")).toBe(plain);
+  it("uses the configured param names", () => {
+    const result = buildUrl(
+      "https://wd.example.com/report",
+      "2026-06-01", "2026-08-31",
+      "Event_Effective_Date_On_or_After", "Event_Effective_Date_On_or_Before"
+    );
+    expect(result).toContain("Event_Effective_Date_On_or_After=2026-06-01");
+    expect(result).toContain("Event_Effective_Date_On_or_Before=2026-08-31");
   });
 });
 
@@ -112,16 +116,14 @@ describe("addWorkingDaysToYMD", () => {
 
 describe("fetchVacations", () => {
   const cfg: WorkdayConfig = {
-    jsonLink:
-      "https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/Report" +
-      "?Event_Effective_Date_On_or_After=2026-01-01-07%3A00" +
-      "&Event_Effective_Date_On_or_Before=2026-06-30-08%3A00" +
-      "&format=json",
+    jsonLink: "https://services1.wd502.myworkday.com/ccx/service/customreport2/yourcompany/ISU/Report",
     user: "testuser",
     password: "testpass",
     excludeWorkers: ["Peter Seidel"],
     noCache: true,
     cacheDir: "/tmp/wd-test-cache",
+    fields: { entries: "Report_Entry", worker: "Worker", dateFrom: "From", dateTo: "To" },
+    dateParams: { from: "Event_Effective_Date_On_or_After", to: "Event_Effective_Date_On_or_Before" },
   };
 
   it("parses Report_Entry into WorkdayEntry[], excludes workers", async () => {
@@ -170,6 +172,25 @@ describe("fetchVacations", () => {
     ) as any;
     const entries = await fetchVacations(cfg, "2026-05-01", "2026-08-01");
     expect(entries).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
+  it("uses custom field mapping when configured", async () => {
+    const customCfg: WorkdayConfig = {
+      ...cfg,
+      fields: { entries: "data", worker: "name", dateFrom: "start", dateTo: "end" },
+    };
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: [{ name: "Alice Smith", start: "2026-06-09", end: "2026-06-13" }],
+        }),
+        { status: 200 }
+      )
+    ) as any;
+    const entries = await fetchVacations(customCfg, "2026-05-01", "2026-08-01");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({ worker: "Alice Smith", from: "2026-06-09", to: "2026-06-13" });
     vi.restoreAllMocks();
   });
 });

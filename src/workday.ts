@@ -12,6 +12,16 @@ export interface WorkdayConfig {
   excludeWorkers: string[];
   noCache: boolean;
   cacheDir?: string;
+  fields: {
+    entries: string;
+    worker: string;
+    dateFrom: string;
+    dateTo: string;
+  };
+  dateParams: {
+    from: string;
+    to: string;
+  };
 }
 
 export interface WorkdayEntry {
@@ -22,10 +32,15 @@ export interface WorkdayEntry {
 
 // --- Pure helpers ---
 
-export function injectDates(url: string, from: string, to: string): string {
-  return url
-    .replace(/(Event_Effective_Date_On_or_After=)\d{4}-\d{2}-\d{2}/, `$1${from}`)
-    .replace(/(Event_Effective_Date_On_or_Before=)\d{4}-\d{2}-\d{2}/, `$1${to}`);
+export function buildUrl(
+  baseUrl: string,
+  from: string,
+  to: string,
+  paramFrom: string,
+  paramTo: string
+): string {
+  const sep = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${sep}${paramFrom}=${from}&${paramTo}=${to}&format=json`;
 }
 
 function isWeekend(dateStr: string): boolean {
@@ -162,7 +177,9 @@ export async function fetchVacations(
     if (cached) return cached;
   }
 
-  const url = injectDates(cfg.jsonLink, from, to);
+  const { fields, dateParams } = cfg;
+
+  const url = buildUrl(cfg.jsonLink, from, to, dateParams.from, dateParams.to);
   const credentials = Buffer.from(`${cfg.user}:${cfg.password}`).toString("base64");
   const resp = await fetch(url, {
     headers: { Authorization: `Basic ${credentials}` },
@@ -175,11 +192,12 @@ export async function fetchVacations(
     throw new Error(`Workday request failed: ${resp.status}`);
   }
 
-  const json = await resp.json() as { Report_Entry?: Array<{ Worker: string; From: string; To: string }> };
+  const json = await resp.json() as Record<string, unknown>;
   const excludeSet = new Set(cfg.excludeWorkers);
-  const entries: WorkdayEntry[] = (json.Report_Entry ?? [])
-    .filter((e) => !excludeSet.has(e.Worker))
-    .map((e) => ({ worker: e.Worker, from: e.From, to: e.To }));
+  const rawEntries = (json[fields.entries] as Array<Record<string, string>>) ?? [];
+  const entries: WorkdayEntry[] = rawEntries
+    .filter((e) => !excludeSet.has(e[fields.worker]))
+    .map((e) => ({ worker: e[fields.worker], from: e[fields.dateFrom], to: e[fields.dateTo] }));
 
   writeCache(cfg, from, to, entries, permanent);
   return entries;

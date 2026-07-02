@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { parseTP } from "./lib";
 import type { SimMode } from "./lib";
 import type { JiraConfig } from "./jira";
+import type { WorkdayConfig } from "./workday";
 
 export type { JiraConfig };
 
@@ -14,13 +15,7 @@ export interface Headcount {
 }
 
 export interface WorkdayInputConfig {
-  wdConfig: {
-    jsonLink: string;
-    user: string;
-    password: string;
-    excludeWorkers: string[];
-    noCache: boolean;
-  };
+  wdConfig: WorkdayConfig;
   teamSize: number;
   joiners: string[];
   leavers: string[];
@@ -286,6 +281,22 @@ export function parseConfig(argv: string[]): ForecastConfig {
       ? excludeWorkersRaw.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
+    const wdFieldEntries  = env.WD_FIELD_ENTRIES;
+    const wdFieldWorker   = env.WD_FIELD_WORKER;
+    const wdFieldDateFrom = env.WD_FIELD_DATE_FROM;
+    const wdFieldDateTo   = env.WD_FIELD_DATE_TO;
+    const wdParamDateFrom = env.WD_PARAM_DATE_FROM;
+    const wdParamDateTo   = env.WD_PARAM_DATE_TO;
+    if (!wdFieldEntries)  throw new Error("WD_FIELD_ENTRIES is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdFieldWorker)   throw new Error("WD_FIELD_WORKER is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdFieldDateFrom) throw new Error("WD_FIELD_DATE_FROM is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdFieldDateTo)   throw new Error("WD_FIELD_DATE_TO is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdParamDateFrom) throw new Error("WD_PARAM_DATE_FROM is required — set it in ~/.config/mcf/env or as an env var.");
+    if (!wdParamDateTo)   throw new Error("WD_PARAM_DATE_TO is required — set it in ~/.config/mcf/env or as an env var.");
+
+    const wdFields = { entries: wdFieldEntries, worker: wdFieldWorker, dateFrom: wdFieldDateFrom, dateTo: wdFieldDateTo };
+    const wdDateParams = { from: wdParamDateFrom, to: wdParamDateTo };
+
     const leavers = (values.leaver ?? []).map((d) => requireValidDate(d, "--leaver"));
     const joiners = (values.joiner ?? []).map((d) => requireValidDate(d, "--joiner"));
 
@@ -296,6 +307,8 @@ export function parseConfig(argv: string[]): ForecastConfig {
         password: wdPassword,
         excludeWorkers,
         noCache: Boolean(values["no-cache"]),
+        fields: wdFields,
+        dateParams: wdDateParams,
       },
       teamSize,
       joiners,
